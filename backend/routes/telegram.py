@@ -3,7 +3,7 @@ import logging
 from flask import request, url_for
 from telegram import Update
 
-from backend import TELEGRAM_TOKEN, app, bot
+from backend import TELEGRAM_TOKEN, app, bot, update_queue
 
 LOG = logging.getLogger(__name__)
 
@@ -21,11 +21,8 @@ def set_telegram_webhook():
     return "success"
 
 
-@app.route(f"/{TELEGRAM_TOKEN}/")
+@app.route(f"/{TELEGRAM_TOKEN}/", methods=["POST"])
 def telegram_webhook():
     update = Update.de_json(request.get_json(force=True), bot)
-    chat_id = update.message.chat.id
-    msg_id = update.message.message_id
-
-    bot.sendMessage(chat_id=chat_id, text=f"You said: {update.message.text}", reply_to_message_id=msg_id)
+    update_queue.put(update)
     return "success"
