@@ -1,13 +1,13 @@
+import logging
 import os
 
 from flask import Flask, redirect
 from telegram import Bot
 
-BASE_URL = os.environ["BASE_URL"]
 INDEX_REDIRECT_URL = os.environ["INDEX_REDIRECT_URL"]
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 
-
+logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
 bot = Bot(token=TELEGRAM_TOKEN)
 
