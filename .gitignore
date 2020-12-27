@@ -2,3 +2,4 @@ virtualenv
 venv
 testAudios
 __pycache__
+.env
