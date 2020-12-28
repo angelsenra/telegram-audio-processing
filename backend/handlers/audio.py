@@ -59,15 +59,31 @@ def improve_audio_or_voice(audio_or_voice, *, file_path, improved_file_path, upd
     LOG.info(f"Downloading...; {file_info=}")
     assert file_path == file_info.download(custom_path=file_path)
     LOG.info(f"Opening...; {file_path=}")
-    segment = AudioSegment.from_file(file_path)
-    context.bot.send_message(
+    original_segment = AudioSegment.from_file(file_path)
+    original_segment_delta = datetime.timedelta(seconds=int(original_segment.duration_seconds))
+    temporary_message = context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
-            f"I'm improving {audio_or_voice.file_unique_id}. Please wait...\n"
-            f"ETA: {datetime.timedelta(seconds=segment.duration_seconds // 3)}"
+            f"Improving {audio_or_voice.file_unique_id}. Please wait...\n"
+            f"Original duration: {original_segment_delta}"
         ),
     )
+    segment = original_segment
+    LOG.info(f"Normalizing...; {segment.duration_seconds=}; {segment.dBFS=}; {segment.max_dBFS=};")
+    segment = segment.normalize(headroom=0.1)
     LOG.info(f"Removing silence...; {segment.duration_seconds=}; {segment.dBFS=}; {segment.max_dBFS=};")
     segment = segment.strip_silence(silence_len=100, silence_thresh=segment.dBFS * 1.5, padding=100)
     LOG.info(f"Saving...; {improved_file_path=}")
     segment.export(improved_file_path)
+
+    final_segment_delta = datetime.timedelta(seconds=int(segment.duration_seconds))
+    context.bot.edit_message_text(
+        chat_id=temporary_message.chat_id,
+        message_id=temporary_message.message_id,
+        text=(
+            f"Improved {audio_or_voice.file_unique_id}.\n"
+            f"Original duration: {original_segment_delta}\n"
+            f"Final duration: {final_segment_delta}\n"
+            f"You saved: {original_segment_delta - final_segment_delta}"
+        ),
+    )
