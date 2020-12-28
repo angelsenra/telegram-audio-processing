@@ -4,7 +4,7 @@ import os
 
 from pydub import AudioSegment
 
-CHUNK_LENGTH = 10_000
+CHUNK_LENGTH = 30_000
 
 PYDUB_LOG = logging.getLogger("pydub.converter")
 PYDUB_LOG.setLevel(logging.INFO)
@@ -57,12 +57,14 @@ def echo_voice(update, context):
 
 
 def improve_audio_or_voice(audio_or_voice, *, file_path, improved_file_path, update, context):
+    LOG.info(f"Getting file info...")
     file_info = audio_or_voice.get_file()
-    LOG.info(f"Downloading...; {file_info=}")
+    LOG.info(f"Downloading...")
     assert file_path == file_info.download(custom_path=file_path)
     LOG.info(f"Opening...; {file_path=}")
-    segment = AudioSegment.from_file(file_path)[:3_600_000]
+    segment = AudioSegment.from_file(file_path)
     original_segment_delta = datetime.timedelta(seconds=int(segment.duration_seconds))
+    LOG.info(f"Sending message...")
     temporary_message = context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
@@ -70,11 +72,31 @@ def improve_audio_or_voice(audio_or_voice, *, file_path, improved_file_path, upd
             f"Original duration: {original_segment_delta}"
         ),
     )
-    segment = chunked_improve(full_segment=segment)
+    updated_segment = segment[:0]
+    duration = int(segment.duration_seconds * 1000)
+    for i in range(0, duration, CHUNK_LENGTH):
+        percentage = 100 * i // duration
+        chunk = segment[i : i + CHUNK_LENGTH]
+        LOG.info(f"[{percentage}%] Normalizing...; {chunk.duration_seconds=}; {chunk.dBFS=}; {chunk.max_dBFS=};")
+        chunk = chunk.normalize(headroom=0.1)
+        LOG.info(f"[{percentage}%] Removing silence...; {chunk.duration_seconds=}; {chunk.dBFS=}; {chunk.max_dBFS=};")
+        chunk = chunk.strip_silence(silence_len=100, silence_thresh=chunk.dBFS * 1.5, padding=100)
+        updated_segment += chunk
+        LOG.info(f"[{percentage}%] Editing message...")
+        context.bot.edit_message_text(
+            chat_id=temporary_message.chat_id,
+            message_id=temporary_message.message_id,
+            text=(
+                f"Improving {audio_or_voice.file_unique_id}. Please wait... ({percentage}%)\n"
+                f"Original duration: {original_segment_delta}"
+            ),
+        )
+
     LOG.info(f"Saving...; {improved_file_path=}")
     segment.export(improved_file_path)
 
     final_segment_delta = datetime.timedelta(seconds=int(segment.duration_seconds))
+    LOG.info(f"Editing message...")
     context.bot.edit_message_text(
         chat_id=temporary_message.chat_id,
         message_id=temporary_message.message_id,
@@ -85,16 +107,3 @@ def improve_audio_or_voice(audio_or_voice, *, file_path, improved_file_path, upd
             f"You saved: {original_segment_delta - final_segment_delta}"
         ),
     )
-
-
-def chunked_improve(*, full_segment):
-    updated_segment = full_segment[:0]
-    duration = int(full_segment.duration_seconds * 1000)
-    for i in range(0, duration, CHUNK_LENGTH):
-        segment = full_segment[i : i + CHUNK_LENGTH]
-        LOG.info(f"Normalizing...; {segment.duration_seconds=}; {segment.dBFS=}; {segment.max_dBFS=};")
-        segment = segment.normalize(headroom=0.1)
-        LOG.info(f"Removing silence...; {segment.duration_seconds=}; {segment.dBFS=}; {segment.max_dBFS=};")
-        segment = segment.strip_silence(silence_len=100, silence_thresh=segment.dBFS * 1.5, padding=100)
-        updated_segment += segment
-    return updated_segment
