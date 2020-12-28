@@ -3,7 +3,7 @@ import logging
 from flask import request, url_for
 from telegram import Update
 
-from backend import DEVELOPMENT_MODE, TELEGRAM_TOKEN, app, bot, dispatcher
+from backend import DEVELOPMENT_MODE, TELEGRAM_TOKEN, app, bot, update_queue
 
 LOG = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ last_update_id = 0
 @app.route(f"/{TELEGRAM_TOKEN}/", methods=["POST"])
 def telegram_webhook():
     update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
+    update_queue.put(update)
     return "success"
 
 
@@ -55,5 +55,5 @@ if DEVELOPMENT_MODE:
         LOG.info(f"Some updates; {len(updates)=}; {last_update_id=}")
         for update in updates:
             LOG.info(f"Enqueuing {update.update_id=}...")
-            dispatcher.process_update(update)
+            update_queue.put(update)
         return str(last_update_id)

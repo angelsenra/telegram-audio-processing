@@ -1,5 +1,7 @@
 import logging
 import os
+from queue import Queue
+from threading import Thread
 
 from flask import Flask, redirect
 from telegram import Bot
@@ -17,10 +19,12 @@ app = Flask(__name__)
 bot = Bot(token=TELEGRAM_TOKEN)
 
 #
-# https://github.com/python-telegram-bot/python-telegram-bot/wiki/Webhooks#alternative-no-threading
+# https://github.com/python-telegram-bot/python-telegram-bot/wiki/Webhooks#custom-solution
 #
 
-dispatcher = Dispatcher(bot=bot, update_queue=None, workers=0)
+update_queue = Queue()
+
+dispatcher = Dispatcher(bot, update_queue)
 
 from backend.handlers.audio import echo_audio, echo_voice
 from backend.handlers.command import start, unknown
@@ -31,6 +35,10 @@ dispatcher.add_handler(MessageHandler(Filters.command, unknown))
 dispatcher.add_handler(MessageHandler(Filters.text & (~Filters.command), echo))
 dispatcher.add_handler(MessageHandler(Filters.audio, echo_audio))
 dispatcher.add_handler(MessageHandler(Filters.voice, echo_voice))
+
+# Start the thread
+thread = Thread(target=dispatcher.start, name="dispatcher")
+thread.start()
 
 # END
 

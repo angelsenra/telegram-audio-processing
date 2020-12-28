@@ -4,6 +4,8 @@ import os
 
 from pydub import AudioSegment
 
+CHUNK_LENGTH = 10_000
+
 PYDUB_LOG = logging.getLogger("pydub.converter")
 PYDUB_LOG.setLevel(logging.INFO)
 PYDUB_LOG.addHandler(logging.StreamHandler())
@@ -59,8 +61,8 @@ def improve_audio_or_voice(audio_or_voice, *, file_path, improved_file_path, upd
     LOG.info(f"Downloading...; {file_info=}")
     assert file_path == file_info.download(custom_path=file_path)
     LOG.info(f"Opening...; {file_path=}")
-    original_segment = AudioSegment.from_file(file_path)
-    original_segment_delta = datetime.timedelta(seconds=int(original_segment.duration_seconds))
+    segment = AudioSegment.from_file(file_path)[:3_600_000]
+    original_segment_delta = datetime.timedelta(seconds=int(segment.duration_seconds))
     temporary_message = context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
@@ -68,11 +70,7 @@ def improve_audio_or_voice(audio_or_voice, *, file_path, improved_file_path, upd
             f"Original duration: {original_segment_delta}"
         ),
     )
-    segment = original_segment
-    LOG.info(f"Normalizing...; {segment.duration_seconds=}; {segment.dBFS=}; {segment.max_dBFS=};")
-    segment = segment.normalize(headroom=0.1)
-    LOG.info(f"Removing silence...; {segment.duration_seconds=}; {segment.dBFS=}; {segment.max_dBFS=};")
-    segment = segment.strip_silence(silence_len=100, silence_thresh=segment.dBFS * 1.5, padding=100)
+    segment = chunked_improve(full_segment=segment)
     LOG.info(f"Saving...; {improved_file_path=}")
     segment.export(improved_file_path)
 
@@ -87,3 +85,16 @@ def improve_audio_or_voice(audio_or_voice, *, file_path, improved_file_path, upd
             f"You saved: {original_segment_delta - final_segment_delta}"
         ),
     )
+
+
+def chunked_improve(*, full_segment):
+    updated_segment = full_segment[:0]
+    duration = int(full_segment.duration_seconds * 1000)
+    for i in range(0, duration, CHUNK_LENGTH):
+        segment = full_segment[i : i + CHUNK_LENGTH]
+        LOG.info(f"Normalizing...; {segment.duration_seconds=}; {segment.dBFS=}; {segment.max_dBFS=};")
+        segment = segment.normalize(headroom=0.1)
+        LOG.info(f"Removing silence...; {segment.duration_seconds=}; {segment.dBFS=}; {segment.max_dBFS=};")
+        segment = segment.strip_silence(silence_len=100, silence_thresh=segment.dBFS * 1.5, padding=100)
+        updated_segment += segment
+    return updated_segment
