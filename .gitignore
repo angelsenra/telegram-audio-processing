@@ -1,6 +1,7 @@
 virtualenv
 venv
-testAudios
 __pycache__
 .env
 .DS_Store
+files/**
+!files/.keep
