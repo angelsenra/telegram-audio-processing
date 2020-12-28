@@ -9,6 +9,7 @@ from telegram.ext import CommandHandler, Dispatcher, Filters, MessageHandler
 
 DEVELOPMENT_MODE = int(os.environ.get("DEVELOPMENT_MODE") or 0)
 INDEX_REDIRECT_URL = os.environ["INDEX_REDIRECT_URL"]
+TELEGRAM_PERSONAL_ID = os.environ["TELEGRAM_PERSONAL_ID"]
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 
 logging.basicConfig(level=logging.INFO)
